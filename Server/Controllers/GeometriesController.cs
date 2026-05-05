@@ -7,7 +7,6 @@ using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using Server.Models;
 using Server.Services;
-
 using Microsoft.AspNetCore.Authorization;
 
 namespace Server.Controllers
@@ -24,7 +23,6 @@ namespace Server.Controllers
             _geometryService = geometryService;
         }
 
-        // JWT token'dan mevcut kullanıcının ID'sini alır
         private int GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -87,7 +85,7 @@ namespace Server.Controllers
             if (userId == 0) return Unauthorized();
 
             string name = feature.Attributes != null && feature.Attributes.Exists("name") 
-                ? feature.Attributes["name"].ToString() 
+                ? feature.Attributes["name"]?.ToString() ?? "Unnamed Feature" 
                 : "Unnamed Feature";
 
             var geomModel = new GeometryModel
@@ -96,16 +94,14 @@ namespace Server.Controllers
                 GeometryType = feature.Geometry.GeometryType,
                 Geoloc = feature.Geometry,
                 CreatedAt = DateTime.UtcNow,
-                UserId = userId  // Kullanıcı ilişkilendir
+                UserId = userId
             };
 
-            // PostGIS için SRID ayarla (WGS 84)
             geomModel.Geoloc.SRID = 4326;
 
             var created = await _geometryService.AddGeometryAsync(geomModel);
             
-            // Return back the created id
-            feature.Attributes.Add("id", created.Id);
+            feature.Attributes?.Add("id", created.Id);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, feature);
         }
 
@@ -120,7 +116,7 @@ namespace Server.Controllers
             var userId = GetCurrentUserId();
             var existing = await _geometryService.GetGeometryByIdAsync(id, userId);
             if (existing == null)
-                return NotFound(); // Başkasının geometrisine erişim engellendi
+                return NotFound();
 
             existing.GeometryType = feature.Geometry.GeometryType;
             existing.Geoloc = feature.Geometry;
@@ -128,7 +124,7 @@ namespace Server.Controllers
 
             if (feature.Attributes != null && feature.Attributes.Exists("name"))
             {
-                existing.Name = feature.Attributes["name"].ToString();
+                existing.Name = feature.Attributes["name"]?.ToString() ?? "Unnamed Feature";
             }
 
             await _geometryService.UpdateGeometryAsync(existing);
@@ -141,7 +137,7 @@ namespace Server.Controllers
             var userId = GetCurrentUserId();
             var success = await _geometryService.DeleteGeometryAsync(id, userId);
             if (!success)
-                return NotFound(); // Bulunamadı veya başkasının verisi
+                return NotFound();
 
             return NoContent();
         }

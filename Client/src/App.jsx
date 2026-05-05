@@ -13,10 +13,8 @@ function App() {
   const [features, setFeatures] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
-  // Çizilen nesnelerin tutulduğu "havuz"
   const vectorSource = useRef(new VectorSource());
 
-  // Mevcut çizimleri VectorSource'dan çekip React state'ine aktarır
   const refreshFeatureList = useCallback(() => {
     if (!vectorSource.current) return;
     
@@ -46,11 +44,10 @@ function App() {
     }
   }, []);
 
-  // API'den verileri çekip haritaya yükle
   const loadFeaturesFromApi = useCallback(async () => {
     const data = await fetchGeometries();
     if (data && data.features) {
-      vectorSource.current.clear(); // Mevcut havuzu temizle
+      vectorSource.current.clear();
       const olFeatures = geoJsonFormat.readFeatures(data, {
         dataProjection: 'EPSG:4326',
         featureProjection: 'EPSG:3857'
@@ -60,13 +57,11 @@ function App() {
     }
   }, [refreshFeatureList]);
 
-  // Sayfa yüklendiğinde çalışır
   useEffect(() => {
     if (user) loadFeaturesFromApi();
   }, [loadFeaturesFromApi, user]);
 
   const handleFeatureAdded = useCallback(async (feature) => {
-    // Yeni eklenen nesneyi GeoJSON formatına çevir
     const geojson = geoJsonFormat.writeFeatureObject(feature, {
         featureProjection: 'EPSG:3857',
         dataProjection: 'EPSG:4326'
@@ -74,10 +69,8 @@ function App() {
     
     geojson.properties = { name: "Yeni Nesne" };
 
-    // API'ye kaydet
     const savedFeature = await createGeometry(geojson);
     
-    // NTS GeoJSON, id'yi kök elemanda veya properties içinde döndürebilir
     const returnedId = (savedFeature && savedFeature.id) || (savedFeature && savedFeature.properties && savedFeature.properties.id);
     
     if (savedFeature && returnedId) {
@@ -104,29 +97,40 @@ function App() {
         dataProjection: 'EPSG:4326'
       });
 
-      // API'yi güncelle
       await updateGeometry(id, geojson);
     }
     refreshFeatureList();
   }, [refreshFeatureList]);
 
-  // Giriş başarısı
+  const handleNameChange = useCallback(async (id, newName) => {
+    const feature = vectorSource.current.getFeatureById(id);
+    if (!feature) return;
+
+    feature.set('name', newName);
+
+    const geojson = geoJsonFormat.writeFeatureObject(feature, {
+      featureProjection: 'EPSG:3857',
+      dataProjection: 'EPSG:4326'
+    });
+
+    await updateGeometry(id, geojson);
+    refreshFeatureList();
+  }, [refreshFeatureList]);
+
   const handleLoginSuccess = (data) => {
     setUser(data.username);
   };
 
-  // Eğer kullanıcı giriş yapmamışsa Login sayfasını göster
   if (!user) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
     <div style={{ display: "flex", height: "100vh", width: "100%", background: '#0f172a' }}>
-      {/* Üst Bar (Kullanıcı Bilgisi ve Logout) */}
       <div style={{ 
         position: 'absolute', 
         top: 20, 
-        right: 370, // Sidebar'ın yanına gelmesi için
+        right: 370, 
         zIndex: 2000, 
         background: 'rgba(15, 23, 42, 0.8)', 
         backdropFilter: 'blur(10px)',
@@ -140,7 +144,6 @@ function App() {
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           <span style={{ fontWeight: '800', color: '#fff', fontSize: '13px', letterSpacing: '0.5px' }}>{user}</span>
-          <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold' }}>GIS UZMANI</span>
         </div>
         <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }}></div>
         <button 
@@ -164,22 +167,21 @@ function App() {
         </button>
       </div>
 
-      {/* SOL TARAF: Harita Bileşeni */}
       <div style={{ flex: 3, height: "100%" }}>
         <MapComponent
           vectorSource={vectorSource}
           selectedId={selectedId}
           onFeatureAdded={handleFeatureAdded}
-          onFeatureSelected={setSelectedId} // Haritadan seçilince ID'yi güncelle
-          onFeatureModified={handleFeatureModified} // Düzenleme olunca API'yi güncelle
+          onFeatureSelected={setSelectedId}
+          onFeatureModified={handleFeatureModified}
         />
       </div>
 
-      {/* SAĞ TARAF: Bilgi Paneli Bileşeni */}
       <Sidebar
         features={features}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        onNameChange={handleNameChange}
       />
 
     </div>

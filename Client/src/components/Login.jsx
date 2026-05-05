@@ -44,18 +44,13 @@ function Login({ onLoginSuccess }) {
 
     return (
         <div style={styles.container}>
-            {/* Arka Plan Katmanı */}
             <div style={styles.backgroundOverlay}></div>
             
             <div style={styles.card}>
                 <div style={styles.header}>
-                    <h1 style={styles.brandTitle}>GIS EXPERT</h1>
-                    <p style={styles.brandSubtitle}>
-                        {isRegister ? 'Yeni Uzman Kayıt Paneli' : 'Coğrafi Bilgi Sistemleri Paneli'}
-                    </p>
+                    <h1 style={styles.brandTitle}>CBS Paneli</h1>
                 </div>
 
-                {/* Sekme Seçici */}
                 <div style={styles.tabContainer}>
                     <button 
                         onClick={() => { setIsRegister(false); setError(''); }} 
@@ -119,13 +114,9 @@ function Login({ onLoginSuccess }) {
                             ...(isRegister ? styles.submitButtonGreen : {})
                         }}
                     >
-                        {loading ? 'İşleniyor...' : (isRegister ? 'Hesabı Oluştur' : 'Sisteme Eriş')}
+                        {loading ? 'İşleniyor...' : (isRegister ? 'Hesabı Oluştur' : 'Giriş Yap')}
                     </button>
                 </form>
-                
-                <div style={styles.footer}>
-                    © 2024 GIS Expert System - Tüm Hakları Saklıdır.
-                </div>
             </div>
         </div>
     );
@@ -138,7 +129,7 @@ const styles = {
         alignItems: 'center',
         height: '100vh',
         width: '100vw',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)', // Modern koyu gradyan
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
         position: 'relative',
         overflow: 'hidden'
     },

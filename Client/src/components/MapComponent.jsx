@@ -1,18 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import 'ol/ol.css';
 import { Map, View } from 'ol';
 import TileLayer from 'ol/layer/Tile';
 import OSM from 'ol/source/OSM';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import { Draw, Modify, Select } from 'ol/interaction'; // Gerekli etkileşimler
+import { Draw, Modify, Select } from 'ol/interaction';
 import { fromLonLat } from 'ol/proj';
 
 function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelected, onFeatureModified }) {
   const mapElement = useRef();
   const mapRef = useRef();
-  const selectInteraction = useRef(new Select()); // Seçme aracı
-  const modifyInteraction = useRef(new Modify({ features: selectInteraction.current.getFeatures() })); // Düzenleme aracı
+  const selectInteraction = useRef(new Select());
+  const modifyInteraction = useRef(new Modify({ features: selectInteraction.current.getFeatures() }));
+  const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
     const initialMap = new Map({
@@ -27,11 +28,10 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
       })
     });
 
-    // Başlangıçta seçme ve düzenleme araçlarını ekle ama pasif tutabiliriz veya hep aktif bırakabiliriz
     initialMap.addInteraction(selectInteraction.current);
     initialMap.addInteraction(modifyInteraction.current);
+    modifyInteraction.current.setActive(false);
 
-    // SEÇME OLAYI: Haritadan bir şey seçilince
     selectInteraction.current.on('select', (e) => {
       const selected = e.selected[0];
       if (onFeatureSelected) {
@@ -39,7 +39,6 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
       }
     });
 
-    // DÜZENLEME OLAYI: Nesne değiştirildiğinde
     modifyInteraction.current.on('modifyend', (e) => {
       const modifiedFeatures = e.features.getArray();
       if (onFeatureModified) onFeatureModified(modifiedFeatures);
@@ -52,7 +51,6 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
     };
   }, [vectorSource, onFeatureAdded, onFeatureSelected, onFeatureModified]);
 
-  // DIŞARIDAN GELEN SEÇİMİ (Sidebar) HARİTAYLA SENKRONİZE ET
   useEffect(() => {
     if (!mapRef.current || !vectorSource.current) return;
 
@@ -69,11 +67,24 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
     }
   }, [selectedId, vectorSource]);
 
-  // Araçları Temizleme ve Yönetme
   const setInteractionsActive = (active) => {
     selectInteraction.current.setActive(active);
-    modifyInteraction.current.setActive(active);
+    modifyInteraction.current.setActive(active ? isEditMode : false);
   };
+
+  useEffect(() => {
+    if (modifyInteraction.current) {
+      modifyInteraction.current.setActive(isEditMode);
+    }
+  }, [isEditMode]);
+
+  useEffect(() => {
+    if (selectedId) {
+      setIsEditMode(true);
+    } else {
+      setIsEditMode(false);
+    }
+  }, [selectedId]);
 
   const clearDrawInteractions = () => {
     mapRef.current.getInteractions().forEach(interaction => {
@@ -83,7 +94,8 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
 
   const startDraw = (type) => {
     clearDrawInteractions();
-    setInteractionsActive(false); // Çizim yaparken seçme/düzenlemeyi kapat
+    setInteractionsActive(false);
+    setIsEditMode(false);
 
     const draw = new Draw({
       source: vectorSource.current,
@@ -92,27 +104,23 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
 
     mapRef.current.addInteraction(draw);
 
-    // Çizim bittiğinde (Çift tıklandığında)
     draw.on('drawend', (e) => {
       mapRef.current.removeInteraction(draw);
-      setInteractionsActive(true); // Çizim bittiğinde diğer araçları geri aç
+      setInteractionsActive(true);
       
-      // Çizilen nesneyi App.jsx'e gönder (API kaydı için)
       if (onFeatureAdded) {
         onFeatureAdded(e.feature);
       }
     });
   };
 
-  // SEÇİLİ NESNEYİ SİL
   const handleDeleteSelected = async () => {
     const selectedFeatures = selectInteraction.current.getFeatures();
     if (selectedFeatures.getLength() > 0) {
       if (window.confirm("Seçili nesneyi silmek istediğinize emin misiniz?")) {
         const { deleteGeometry } = await import('../api');
         
-        // Asenkron olarak seçili öğeleri sil
-        const featuresArray = selectedFeatures.getArray().slice(); // Kopya al
+        const featuresArray = selectedFeatures.getArray().slice();
         for (const feature of featuresArray) {
           const id = feature.getId();
           if (id) {
@@ -123,13 +131,12 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
               alert("Veritabanından silinirken hata oluştu.");
             }
           } else {
-            // Eğer daha API'ye kaydedilmemiş geçici bir nesneyse sadece haritadan sil
             vectorSource.current.removeFeature(feature);
           }
         }
         
-        selectedFeatures.clear(); // Seçimi temizle
-        if (onFeatureModified) onFeatureModified(); // Listeyi güncelle
+        selectedFeatures.clear();
+        if (onFeatureModified) onFeatureModified();
       }
     } else {
       alert("Lütfen önce silmek istediğiniz nesneyi seçin.");
@@ -138,7 +145,6 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
 
   return (
     <div style={{ position: "relative", height: "100%", width: "100%" }}>
-      {/* ARAÇ ÇUBUĞU */}
       <div style={{ 
         position: "absolute", 
         top: 20, 
@@ -181,8 +187,30 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
             {btn.icon} {btn.label}
           </button>
         ))}
-
         <div style={{ width: "1px", background: "rgba(255,255,255,0.1)", margin: "auto 5px", height: "24px" }}></div>
+        
+        <button 
+          onClick={() => setIsEditMode(!isEditMode)} 
+          style={{ 
+            padding: "10px 16px",
+            background: isEditMode ? "#10b981" : "rgba(255,255,255,0.05)", 
+            color: "#fff", 
+            border: isEditMode ? "1px solid #059669" : "none", 
+            borderRadius: "10px", 
+            cursor: "pointer",
+            fontSize: "11px",
+            fontWeight: "700",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.3s ease",
+            boxShadow: isEditMode ? '0 0 10px rgba(16, 185, 129, 0.4)' : 'none'
+          }}
+          onMouseOver={(e) => !isEditMode && (e.target.style.background = 'rgba(59, 130, 246, 0.2)')}
+          onMouseOut={(e) => !isEditMode && (e.target.style.background = 'rgba(255,255,255,0.05)')}
+        >
+          ✏️ {isEditMode ? 'DÜZENLENİYOR...' : 'DÜZENLE'}
+        </button>
         
         <button 
           onClick={handleDeleteSelected} 

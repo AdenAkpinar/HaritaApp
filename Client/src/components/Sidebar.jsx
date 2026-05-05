@@ -1,7 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-function Sidebar({ features, selectedId, onSelect }) {
+function Sidebar({ features, selectedId, onSelect, onNameChange }) {
   const selectedFeature = features.find(f => f.id === selectedId);
+
+  const [editingName, setEditingName] = useState("");
+
+  useEffect(() => {
+    if (selectedFeature) {
+      setEditingName(selectedFeature.name);
+    }
+  }, [selectedFeature]);
+
+  const handleNameSubmit = () => {
+    if (selectedFeature && editingName !== selectedFeature.name) {
+      if (onNameChange) onNameChange(selectedFeature.id, editingName);
+    }
+  };
 
   return (
     <div style={styles.sidebar}>
@@ -38,10 +52,22 @@ function Sidebar({ features, selectedId, onSelect }) {
           )}
         </div>
 
-        {/* DETAYLAR KISMI */}
         {selectedFeature && (
           <div style={styles.detailsBox}>
             <h4 style={styles.detailsTitle}>Geometri Detayları</h4>
+            
+            <div style={styles.detailsRow}>
+              <span style={styles.detailsLabel}>İsim:</span>
+              <input 
+                type="text" 
+                value={editingName} 
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={handleNameSubmit}
+                onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
+                style={styles.nameInput}
+              />
+            </div>
+
             <div style={styles.detailsRow}>
               <span style={styles.detailsLabel}>Tip:</span>
               <span style={styles.typeBadge}>{selectedFeature.type}</span>
@@ -171,6 +197,17 @@ const styles = {
     fontSize: '13px',
     color: 'rgba(255,255,255,0.5)'
   },
+  nameInput: {
+    background: 'rgba(0,0,0,0.3)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    color: '#fff',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    width: '180px',
+    outline: 'none',
+    transition: 'border 0.3s ease'
+  },
   coordinatesContainer: {
     marginTop: '15px'
   },
@@ -180,7 +217,7 @@ const styles = {
     padding: '10px',
     borderRadius: '8px',
     overflowX: 'auto',
-    color: '#10b981', // Yeşil koordinat rengi (Matrix havası)
+    color: '#10b981',
     border: '1px solid rgba(255,255,255,0.05)',
     marginTop: '8px'
   },

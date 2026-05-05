@@ -31,7 +31,6 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// Add services to the container.
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
@@ -41,20 +40,15 @@ builder.Services.AddControllers()
         }
     });
 
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
-// builder.Services.AddSwaggerGen(); // Eğer Swagger eklenecekse burası açılabilir
 
-// PostgreSQL veritabanı bağlantısı
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
         o => o.UseNetTopologySuite()));
 
-// Repositories ve Services
 builder.Services.AddScoped<IGeometryRepository, GeometryRepository>();
 builder.Services.AddScoped<IGeometryService, GeometryService>();
 
-// CORS Politikası
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -66,8 +60,6 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-// Configure the HTTP request pipeline.
 
 app.UseRouting();
 app.UseCors("AllowFrontend");

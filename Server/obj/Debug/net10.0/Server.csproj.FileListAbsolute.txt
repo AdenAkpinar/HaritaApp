@@ -136,3 +136,4 @@ C:\Users\ADEN\Desktop\cbs\Server\bin\Debug\net10.0\Microsoft.IdentityModel.Proto
 C:\Users\ADEN\Desktop\cbs\Server\bin\Debug\net10.0\Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 C:\Users\ADEN\Desktop\cbs\Server\bin\Debug\net10.0\Microsoft.IdentityModel.Tokens.dll
 C:\Users\ADEN\Desktop\cbs\Server\bin\Debug\net10.0\System.IdentityModel.Tokens.Jwt.dll
+C:\Users\ADEN\Desktop\cbs\Server\obj\Debug\net10.0\Server.sourcelink.json
