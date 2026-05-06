@@ -27,9 +27,11 @@ function App() {
 
         const id = f.getId();
         const rawName = f.get('name');
-        const displayName = (!rawName || rawName === "Yeni Nesne") 
-                            ? `Nesne ${id || '...'}` 
-                            : rawName;
+        
+        let displayName = rawName;
+        if (!rawName || rawName === "Yeni Nesne") {
+          displayName = (typeof id === 'number') ? `Nesne ${id}` : "Yeni Nesne";
+        }
 
         return {
           id: id,

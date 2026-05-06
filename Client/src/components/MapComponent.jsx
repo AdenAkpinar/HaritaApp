@@ -7,6 +7,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Draw, Modify, Select } from 'ol/interaction';
 import { fromLonLat } from 'ol/proj';
+import Overlay from 'ol/Overlay';
 
 function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelected, onFeatureModified }) {
   const mapElement = useRef();
@@ -14,6 +15,9 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
   const selectInteraction = useRef(new Select());
   const modifyInteraction = useRef(new Modify({ features: selectInteraction.current.getFeatures() }));
   const [isEditMode, setIsEditMode] = useState(false);
+  const tooltipElement = useRef();
+  const [tooltipData, setTooltipData] = useState(null);
+  const [showTooltipCoords, setShowTooltipCoords] = useState(false);
 
   useEffect(() => {
     const initialMap = new Map({
@@ -42,6 +46,53 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
     modifyInteraction.current.on('modifyend', (e) => {
       const modifiedFeatures = e.features.getArray();
       if (onFeatureModified) onFeatureModified(modifiedFeatures);
+    });
+
+    const popupOverlay = new Overlay({
+      element: tooltipElement.current,
+      positioning: 'bottom-center',
+      stopEvent: true, // Tıklanabilir olması için true yaptık
+      offset: [0, -10],
+    });
+    initialMap.addOverlay(popupOverlay);
+
+    initialMap.on('singleclick', (evt) => {
+      const pixel = initialMap.getEventPixel(evt.originalEvent);
+      let featureFound = null;
+      
+      initialMap.forEachFeatureAtPixel(pixel, (feature) => {
+        featureFound = feature;
+        return true;
+      });
+
+      if (featureFound) {
+        const coordinate = evt.coordinate;
+        popupOverlay.setPosition(coordinate);
+        const rawName = featureFound.get('name');
+        const id = featureFound.getId();
+        const displayName = (rawName && rawName !== "Yeni Nesne") 
+                            ? rawName 
+                            : (typeof id === 'number' ? `Nesne ${id}` : "Yeni Nesne");
+
+        setTooltipData({
+          name: displayName,
+          type: featureFound.getGeometry().getType(),
+          coordinates: featureFound.getGeometry().getCoordinates()
+        });
+        setShowTooltipCoords(false); // Yeni nesne açıldığında kapalı başlasın
+      } else {
+        popupOverlay.setPosition(undefined);
+        setTooltipData(null);
+      }
+    });
+
+    initialMap.on('pointermove', (evt) => {
+      if (evt.dragging) {
+        return;
+      }
+      const pixel = initialMap.getEventPixel(evt.originalEvent);
+      const hit = initialMap.hasFeatureAtPixel(pixel);
+      initialMap.getTargetElement().style.cursor = hit ? 'pointer' : '';
     });
 
     mapRef.current = initialMap;
@@ -237,6 +288,71 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
       </div>
 
       <div ref={mapElement} style={{ height: "100%", width: "100%" }}></div>
+
+      <div 
+        ref={tooltipElement} 
+        style={{
+          display: tooltipData ? 'block' : 'none',
+          background: 'rgba(15, 23, 42, 0.95)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(59, 130, 246, 0.4)',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          color: '#fff',
+          fontSize: '13px',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
+          minWidth: '150px'
+        }}
+      >
+        {tooltipData && (
+          <>
+            <div style={{ fontWeight: '800', marginBottom: '4px', color: '#60a5fa', letterSpacing: '0.5px' }}>
+              {tooltipData.name}
+            </div>
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '8px' }}>
+              TİP: <span style={{ color: '#10b981' }}>{tooltipData.type}</span>
+            </div>
+            
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTooltipCoords(!showTooltipCoords);
+                }}
+                style={{ 
+                  fontSize: '11px', 
+                  color: '#3b82f6', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  fontWeight: 'bold'
+                }}
+              >
+                <span>Kordinatlar</span>
+                <span style={{ transition: 'transform 0.3s ease', transform: showTooltipCoords ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  ▼
+                </span>
+              </div>
+              
+              {showTooltipCoords && (
+                <div style={{ 
+                  marginTop: '8px', 
+                  fontSize: '10px', 
+                  color: '#10b981', 
+                  background: 'rgba(0,0,0,0.2)', 
+                  padding: '8px', 
+                  borderRadius: '6px' 
+                }}>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                    {JSON.stringify(tooltipData.coordinates, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

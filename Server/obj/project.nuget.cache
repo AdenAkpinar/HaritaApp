@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "taUwqLcBUAQ=",
+  "dgSpecHash": "VeErElLE5SU=",
   "success": true,
-  "projectFilePath": "C:\\Users\\ADEN\\Desktop\\cbs\\Server\\Server.csproj",
+  "projectFilePath": "C:\\Users\\ADEN\\Desktop\\cbs\\server\\Server.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\ADEN\\.nuget\\packages\\bcrypt.net-next\\4.1.0\\bcrypt.net-next.4.1.0.nupkg.sha512",
     "C:\\Users\\ADEN\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
