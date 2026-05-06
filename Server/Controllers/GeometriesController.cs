@@ -46,6 +46,10 @@ namespace Server.Controllers
                     { "createdAt", geom.CreatedAt }
                 };
 
+                if (!string.IsNullOrEmpty(geom.Color)) attributes.Add("color", geom.Color);
+                if (geom.Distance.HasValue) attributes.Add("distance", geom.Distance.Value);
+                if (geom.Duration.HasValue) attributes.Add("duration", geom.Duration.Value);
+
                 var feature = new Feature(geom.Geoloc, attributes);
                 featureCollection.Add(feature);
             }
@@ -68,6 +72,10 @@ namespace Server.Controllers
                 { "geometryType", geom.GeometryType },
                 { "createdAt", geom.CreatedAt }
             };
+
+            if (!string.IsNullOrEmpty(geom.Color)) attributes.Add("color", geom.Color);
+            if (geom.Distance.HasValue) attributes.Add("distance", geom.Distance.Value);
+            if (geom.Duration.HasValue) attributes.Add("duration", geom.Duration.Value);
 
             var feature = new Feature(geom.Geoloc, attributes);
             return Ok(feature);
@@ -94,14 +102,22 @@ namespace Server.Controllers
                 GeometryType = feature.Geometry.GeometryType,
                 Geoloc = feature.Geometry,
                 CreatedAt = DateTime.UtcNow,
-                UserId = userId
+                UserId = userId,
+                Color = feature.Attributes != null && feature.Attributes.Exists("color") ? feature.Attributes["color"]?.ToString() : null,
+                Distance = feature.Attributes != null && feature.Attributes.Exists("distance") ? Convert.ToDouble(feature.Attributes["distance"]) : null,
+                Duration = feature.Attributes != null && feature.Attributes.Exists("duration") ? Convert.ToDouble(feature.Attributes["duration"]) : null
             };
 
             geomModel.Geoloc.SRID = 4326;
 
             var created = await _geometryService.AddGeometryAsync(geomModel);
             
-            feature.Attributes?.Add("id", created.Id);
+            if (feature.Attributes == null)
+            {
+                feature.Attributes = new AttributesTable();
+            }
+            feature.Attributes.Add("id", created.Id);
+            
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, feature);
         }
 
@@ -122,9 +138,19 @@ namespace Server.Controllers
             existing.Geoloc = feature.Geometry;
             existing.Geoloc.SRID = 4326;
 
-            if (feature.Attributes != null && feature.Attributes.Exists("name"))
+            if (feature.Attributes != null)
             {
-                existing.Name = feature.Attributes["name"]?.ToString() ?? "Unnamed Feature";
+                if (feature.Attributes.Exists("name"))
+                    existing.Name = feature.Attributes["name"]?.ToString() ?? "Unnamed Feature";
+                
+                if (feature.Attributes.Exists("color"))
+                    existing.Color = feature.Attributes["color"]?.ToString();
+                
+                if (feature.Attributes.Exists("distance"))
+                    existing.Distance = Convert.ToDouble(feature.Attributes["distance"]);
+                
+                if (feature.Attributes.Exists("duration"))
+                    existing.Duration = Convert.ToDouble(feature.Attributes["duration"]);
             }
 
             await _geometryService.UpdateGeometryAsync(existing);

@@ -6,8 +6,11 @@ import OSM from 'ol/source/OSM';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Draw, Modify, Select } from 'ol/interaction';
-import { fromLonLat } from 'ol/proj';
+import { fromLonLat, toLonLat } from 'ol/proj';
 import Overlay from 'ol/Overlay';
+import { LineString, Point } from 'ol/geom';
+import { Style, Stroke, Fill, Circle as CircleStyle } from 'ol/style';
+import Feature from 'ol/Feature';
 
 function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelected, onFeatureModified }) {
   const mapElement = useRef();
@@ -18,13 +21,56 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
   const tooltipElement = useRef();
   const [tooltipData, setTooltipData] = useState(null);
   const [showTooltipCoords, setShowTooltipCoords] = useState(false);
+  const [isRoutingMode, setIsRoutingMode] = useState(false);
+  const [routePoints, setRoutePoints] = useState([]);
+  const [routingFeatureIds, setRoutingFeatureIds] = useState([]);
+  const routingModeRef = useRef(false);
+  const routePointsRef = useRef([]);
+  const routingFeatureIdsRef = useRef([]);
+
+  useEffect(() => {
+    routingModeRef.current = isRoutingMode;
+  }, [isRoutingMode]);
+
+  useEffect(() => {
+    routePointsRef.current = routePoints;
+  }, [routePoints]);
+
+  useEffect(() => {
+    routingFeatureIdsRef.current = routingFeatureIds;
+  }, [routingFeatureIds]);
+
+  // Varsayılan stil (Renk olayı kaldırıldı)
+  const featureStyle = (feature) => {
+    const isRoutingSelected = routingFeatureIdsRef.current.includes(feature.getId());
+    
+    const baseStyle = new Style({
+      stroke: new Stroke({ 
+        color: isRoutingSelected ? '#fbbf24' : '#3b82f6', 
+        width: isRoutingSelected ? 6 : 4 
+      }),
+      fill: new Fill({ 
+        color: isRoutingSelected ? 'rgba(251, 191, 36, 0.4)' : 'rgba(59, 130, 246, 0.2)' 
+      }),
+      image: new CircleStyle({
+        radius: isRoutingSelected ? 10 : 6,
+        fill: new Fill({ color: isRoutingSelected ? '#fbbf24' : '#3b82f6' }),
+        stroke: new Stroke({ color: '#fff', width: 2 })
+      })
+    });
+    
+    return baseStyle;
+  };
 
   useEffect(() => {
     const initialMap = new Map({
       target: mapElement.current,
       layers: [
         new TileLayer({ source: new OSM() }),
-        new VectorLayer({ source: vectorSource.current })
+        new VectorLayer({ 
+          source: vectorSource.current,
+          style: featureStyle
+        })
       ],
       view: new View({
         center: fromLonLat([32.8597, 39.9334]),
@@ -56,7 +102,61 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
     });
     initialMap.addOverlay(popupOverlay);
 
-    initialMap.on('singleclick', (evt) => {
+    initialMap.on('singleclick', async (evt) => {
+      if (routingModeRef.current) {
+        const pixel = initialMap.getEventPixel(evt.originalEvent);
+        let featureFound = null;
+        initialMap.forEachFeatureAtPixel(pixel, (f) => {
+          if (f.get('tempMarker')) return false;
+          featureFound = f;
+          return true;
+        });
+
+        let coord;
+        if (featureFound) {
+          const featureId = featureFound.getId();
+          if (featureId && routingFeatureIdsRef.current.includes(featureId)) return;
+          if (featureId) setRoutingFeatureIds([...routingFeatureIdsRef.current, featureId]);
+
+          let geom = featureFound.getGeometry();
+          coord = geom.getType() === 'Point' 
+            ? geom.getCoordinates() 
+            : [(geom.getExtent()[0] + geom.getExtent()[2]) / 2, (geom.getExtent()[1] + geom.getExtent()[3]) / 2];
+          
+          featureFound.changed();
+        } else {
+          coord = evt.coordinate;
+          // Boşluğa tıklanan yer için geçici bir görsel işaretçi ekle
+          const marker = new Feature({
+            geometry: new Point(coord),
+            tempMarker: true
+          });
+          marker.setStyle(new Style({
+            image: new CircleStyle({
+              radius: 8,
+              fill: new Fill({ color: '#fbbf24' }),
+              stroke: new Stroke({ color: '#fff', width: 2 })
+            })
+          }));
+          vectorSource.current.addFeature(marker);
+        }
+
+        const lonLat = toLonLat(coord);
+        const newPoints = [...routePointsRef.current, lonLat];
+        setRoutePoints(newPoints);
+
+        if (newPoints.length >= 2) {
+          await calculateRoute(newPoints);
+          // Tüm geçici işaretçileri temizle
+          const features = vectorSource.current.getFeatures();
+          features.forEach(f => {
+            if (f.get('tempMarker')) vectorSource.current.removeFeature(f);
+          });
+          setRoutingFeatureIds([]);
+        }
+        return;
+      }
+
       const pixel = initialMap.getEventPixel(evt.originalEvent);
       let featureFound = null;
       
@@ -114,6 +214,15 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
       const feature = vectorSource.current.getFeatureById(selectedId);
       if (feature) {
         selectedFeatures.push(feature);
+        
+        // Seçilen nesneye odaklan (Sadece Merkeze Al, Zoom Değiştirme)
+        const extent = feature.getGeometry().getExtent();
+        const center = [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2];
+        
+        mapRef.current.getView().animate({
+          center: center,
+          duration: 1000
+        });
       }
     }
   }, [selectedId, vectorSource]);
@@ -163,6 +272,59 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
         onFeatureAdded(e.feature);
       }
     });
+  };
+
+  const calculateRoute = async (points) => {
+    try {
+      const coordsString = points.map(p => `${p[0]},${p[1]}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.code === 'Ok' && data.routes.length > 0) {
+        const route = data.routes[0];
+        const routeCoords = route.geometry.coordinates;
+        
+        // OpenLayers için koordinatları dönüştür
+        const olCoords = routeCoords.map(c => fromLonLat(c));
+        
+        const existingRoutes = vectorSource.current.getFeatures().filter(f => 
+          f.get('name')?.startsWith('Güzergah')
+        ).length;
+        
+        const routeFeature = new Feature({
+          geometry: new LineString(olCoords),
+          name: `Güzergah ${existingRoutes + 1}`,
+          distance: route.distance,
+          duration: route.duration
+        });
+
+        vectorSource.current.addFeature(routeFeature);
+        
+        if (onFeatureAdded) {
+          onFeatureAdded(routeFeature);
+        }
+      }
+
+      // Reset routing mode
+      setIsRoutingMode(false);
+      setRoutePoints([]);
+      setRoutingFeatureIds([]);
+      // Geçici işaretçileri temizle
+      vectorSource.current.getFeatures().forEach(f => {
+        if (f.get('tempMarker')) vectorSource.current.removeFeature(f);
+      });
+    } catch (error) {
+      console.error("OSRM Hatası:", error);
+      alert("Güzergah hesaplanırken bir hata oluştu.");
+      setIsRoutingMode(false);
+      setRoutePoints([]);
+      setRoutingFeatureIds([]);
+      vectorSource.current.getFeatures().forEach(f => {
+        if (f.get('tempMarker')) vectorSource.current.removeFeature(f);
+      });
+    }
   };
 
   const handleDeleteSelected = async () => {
@@ -218,7 +380,10 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
         ].map((btn) => (
           <button 
             key={btn.type}
-            onClick={() => startDraw(btn.type)}
+            onClick={() => {
+              setIsRoutingMode(false);
+              startDraw(btn.type);
+            }}
             style={{
               padding: "10px 16px",
               background: "rgba(255,255,255,0.05)",
@@ -239,6 +404,34 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
             {btn.icon} {btn.label}
           </button>
         ))}
+        
+        <button 
+          onClick={() => {
+            clearDrawInteractions();
+            setIsRoutingMode(!isRoutingMode);
+            setRoutePoints([]);
+            setRoutingFeatureIds([]);
+          }}
+          style={{
+            padding: "10px 16px",
+            background: isRoutingMode ? "#3b82f6" : "rgba(255,255,255,0.05)",
+            color: "#fff",
+            border: isRoutingMode ? "1px solid #2563eb" : "none",
+            borderRadius: "10px",
+            cursor: "pointer",
+            fontSize: "11px",
+            fontWeight: "700",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.3s ease",
+            boxShadow: isRoutingMode ? '0 0 10px rgba(59, 130, 246, 0.4)' : 'none'
+          }}
+          onMouseOver={(e) => !isRoutingMode && (e.target.style.background = 'rgba(59, 130, 246, 0.2)')}
+          onMouseOut={(e) => !isRoutingMode && (e.target.style.background = 'rgba(255,255,255,0.05)')}
+        >
+          🛤️ {isRoutingMode ? 'NOKTA SEÇİN...' : 'GÜZERGAH'}
+        </button>
         <div style={{ width: "1px", background: "rgba(255,255,255,0.1)", margin: "auto 5px", height: "24px" }}></div>
         
         <button 

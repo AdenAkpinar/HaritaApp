@@ -21,6 +21,9 @@ namespace Server.Models
         public Geometry Geoloc { get; set; } = null!;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? Color { get; set; }
+        public double? Distance { get; set; }
+        public double? Duration { get; set; }
 
         // Kullanıcı ilişkisi
         public int UserId { get; set; }

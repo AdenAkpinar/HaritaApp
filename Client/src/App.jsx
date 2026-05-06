@@ -37,7 +37,9 @@ function App() {
           id: id,
           name: displayName,
           type: geojson.geometry?.type || 'Unknown',
-          coordinates: geojson.geometry?.coordinates || []
+          coordinates: geojson.geometry?.coordinates || [],
+          distance: f.get('distance'),
+          duration: f.get('duration')
         };
       });
       setFeatures(allFeatures);
@@ -54,6 +56,10 @@ function App() {
         dataProjection: 'EPSG:4326',
         featureProjection: 'EPSG:3857'
       });
+      olFeatures.forEach(f => {
+        const id = f.get('id');
+        if (id) f.setId(id);
+      });
       vectorSource.current.addFeatures(olFeatures);
       refreshFeatureList();
     }
@@ -69,7 +75,10 @@ function App() {
         dataProjection: 'EPSG:4326'
     });
     
-    geojson.properties = { name: "Yeni Nesne" };
+    const properties = { ...feature.getProperties() };
+    delete properties.geometry; 
+    if (!properties.name) properties.name = "Yeni Nesne";
+    geojson.properties = properties;
 
     const savedFeature = await createGeometry(geojson);
     
@@ -78,6 +87,11 @@ function App() {
     if (savedFeature && returnedId) {
         feature.setId(returnedId);
         feature.setProperties(savedFeature.properties || { name: "Yeni Nesne" });
+        if (savedFeature.properties) {
+          Object.keys(savedFeature.properties).forEach(key => {
+            feature.set(key, savedFeature.properties[key]);
+          });
+        }
     } else {
         feature.setId(crypto.randomUUID());
         feature.setProperties({ name: "Yeni Nesne" });
