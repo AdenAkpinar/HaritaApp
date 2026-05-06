@@ -11,7 +11,7 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // JWT Ayarları
-var key = Encoding.ASCII.GetBytes("CokGizliBirGuvenlikAnahtari_2024_GIS_CBS"); // Bu anahtar güvenli saklanmalı
+var secret_key = Encoding.ASCII.GetBytes("secret_key_for_this_gis_application");
 
 builder.Services.AddAuthentication(x =>
 {
@@ -25,7 +25,7 @@ builder.Services.AddAuthentication(x =>
     x.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
+        IssuerSigningKey = new SymmetricSecurityKey(secret_key),
         ValidateIssuer = false,
         ValidateAudience = false
     };
@@ -66,6 +66,10 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
 
 app.MapControllers();
 

@@ -86,19 +86,20 @@ function App() {
   }, [refreshFeatureList]);
 
   const handleFeatureModified = useCallback(async (modifiedFeatures) => {
-    if (!modifiedFeatures || modifiedFeatures.length === 0) return;
+    if (modifiedFeatures && Array.isArray(modifiedFeatures)) {
+      for (const feature of modifiedFeatures) {
+        const id = feature.getId();
+        if (!id) continue;
 
-    for (const feature of modifiedFeatures) {
-      const id = feature.getId();
-      if (!id) continue;
+        const geojson = geoJsonFormat.writeFeatureObject(feature, {
+          featureProjection: 'EPSG:3857',
+          dataProjection: 'EPSG:4326'
+        });
 
-      const geojson = geoJsonFormat.writeFeatureObject(feature, {
-        featureProjection: 'EPSG:3857',
-        dataProjection: 'EPSG:4326'
-      });
-
-      await updateGeometry(id, geojson);
+        await updateGeometry(id, geojson);
+      }
     }
+    
     refreshFeatureList();
   }, [refreshFeatureList]);
 
@@ -189,5 +190,3 @@ function App() {
 }
 
 export default App;
-
-

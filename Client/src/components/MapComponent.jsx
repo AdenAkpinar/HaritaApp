@@ -136,6 +136,7 @@ function MapComponent({ vectorSource, selectedId, onFeatureAdded, onFeatureSelec
         }
         
         selectedFeatures.clear();
+        if (onFeatureSelected) onFeatureSelected(null);
         if (onFeatureModified) onFeatureModified();
       }
     } else {
